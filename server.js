@@ -21,7 +21,7 @@ app.post('/api/paystack/pay', async (req, res) => {
     const response = await axios.post(
       'https://api.paystack.co/transaction/initialize',
       {
-        amount: amount * 100, // convert to kobo
+      ref: data.reference,
         email: `${phone}@loanapp.com`, // fake email but unique
         callback_url: `${process.env.BASE_URL}/api/paystack/verify`,
         metadata: {
