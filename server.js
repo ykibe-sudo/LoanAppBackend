@@ -17,12 +17,23 @@ const PORT = process.env.PORT || 3000;
 app.post('/api/paystack/pay', async (req, res) => {
   const { amount, phone } = req.body;
 
+  // 🔍 DEBUG (VERY IMPORTANT)
+  console.log("REQUEST BODY:", req.body);
+
+  // ❌ Validate input (prevents silent crashes)
+  if (!amount || !phone) {
+    return res.status(400).json({
+      status: false,
+      message: "Amount and phone are required"
+    });
+  }
+
   try {
     const response = await axios.post(
       'https://api.paystack.co/transaction/initialize',
       {
         amount: amount * 100, // convert to kobo
-        email: `${phone}@loanapp.com`, // fake email but unique
+        email: `${phone}@loanapp.com`,
         callback_url: `${process.env.BASE_URL}/api/paystack/verify`,
         metadata: {
           phone: phone
@@ -36,18 +47,23 @@ app.post('/api/paystack/pay', async (req, res) => {
       }
     );
 
-    // ✅ Send clean response to frontend
+    // 🔍 DEBUG RESPONSE
+    console.log("PAYSTACK RESPONSE:", response.data);
+
+    // ✅ Clean response to frontend
     res.json({
       status: true,
-      url: response.data.data.authorization_url,
-      reference: response.data.data.reference
+      reference: response.data.data.reference,
+      url: response.data.data.authorization_url
     });
 
   } catch (error) {
-    console.error(error.response?.data || error.message);
+    // 🔥 SHOW REAL ERROR (THIS IS WHAT YOU NEED)
+    console.error("PAYSTACK ERROR:", error.response?.data || error.message);
+
     res.status(500).json({
       status: false,
-      message: 'Payment initialization failed'
+      message: error.response?.data?.message || 'Payment initialization failed'
     });
   }
 });
@@ -55,11 +71,15 @@ app.post('/api/paystack/pay', async (req, res) => {
 
 /**
  * ===============================
- * 2. VERIFY PAYMENT (IMPORTANT)
+ * 2. VERIFY PAYMENT
  * ===============================
  */
 app.get('/api/paystack/verify', async (req, res) => {
   const { reference } = req.query;
+
+  if (!reference) {
+    return res.send('<h2>Missing reference</h2>');
+  }
 
   try {
     const response = await axios.get(
@@ -73,11 +93,9 @@ app.get('/api/paystack/verify', async (req, res) => {
 
     const data = response.data.data;
 
+    console.log("VERIFY RESPONSE:", data);
+
     if (data.status === 'success') {
-      console.log('✅ Payment successful:', data);
-
-      // 👉 You can store in DB here if needed
-
       return res.send(`
         <h2>Payment Successful ✅</h2>
         <p>Amount: ${data.amount / 100}</p>
@@ -90,7 +108,7 @@ app.get('/api/paystack/verify', async (req, res) => {
     }
 
   } catch (error) {
-    console.error(error.response?.data || error.message);
+    console.error("VERIFY ERROR:", error.response?.data || error.message);
     res.send('<h2>Error verifying payment</h2>');
   }
 });
